@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import sys
 
-VERSION = "1.1.0" #* Major.Minor.Patch
+VERSION = "1.1.3" #* Major.Minor.Patch
 COLOURS = True
 if not sys.stdout.isatty():
     COLOURS = False
@@ -47,7 +47,7 @@ def colourise(message):
     if not COLOURS:
         return message
 
-    if message.startswith("SYS"):
+    if message.startswith("SYS") or message.startswith("LOCALSYS"):
         return f"{CYAN}{message}{RESET}"
 
     if message.startswith("ERR"):
@@ -74,8 +74,9 @@ def colourise(message):
 host = input(f"{YELLOW}Host (default: chat.sneezless.com): {RESET}").strip() or "chat.sneezless.com"
 port_input = input(f"{YELLOW}Port (default: 443): {RESET}").strip()
 port = int(port_input) if port_input else 443
-
-nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
+nickname = None
+if not nickname:
+    nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
 
 # ---------- websocket handlers ----------
 
@@ -107,7 +108,7 @@ async def send(ws):
             continue   
 
         if msg.lower() == "/version":
-            print(f"LOCALSYS Wirechat client v{VERSION}")
+            print(colourise(f"LOCALSYS Wirechat client v{VERSION}"))
             await ws.send("VERSION")
             continue
 
@@ -169,8 +170,18 @@ async def main():
     except Exception as e:
         print(f"{RED}Client error: {e}{RESET}")
         raise
-    
+
+async def run_client():
+    while True:
+        try:
+            await main()
+        except KeyboardInterrupt:
+            break
+
+        choice = input("Reconnect? [y/N]: ").strip().lower()
+        if str_to_bool(choice) == False:
+            break
 try:
-    asyncio.run(main())
+    asyncio.run(run_client())
 except KeyboardInterrupt:
     print("\rDisconnected.")
