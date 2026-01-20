@@ -35,9 +35,9 @@ def str_to_bool(s):
         return False
     else:
         raise ValueError(f"Boolean value expected, got: '{s}'")
-if len(sys.argv) > 0:
-    COLOURS = sys.argv[1]
 if len(sys.argv) > 1:
+    COLOURS = sys.argv[1]
+if len(sys.argv) > 2:
     LOCALUNSECURE = str_to_bool(sys.argv[2])
 
 def colourise(message):
