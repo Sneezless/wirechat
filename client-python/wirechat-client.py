@@ -2,9 +2,11 @@ import asyncio
 import websockets
 import sys
 
-colours = True
+COLOURS = True
 if not sys.stdout.isatty():
-    colours = False
+    COLOURS = False
+
+LOCALUNSECURE = False
 # ---------- colours ----------
 
 RESET  = "\033[0m"
@@ -41,7 +43,7 @@ if len(sys.argv) > 2:
     LOCALUNSECURE = str_to_bool(sys.argv[2])
 
 def colourise(message):
-    if not colours:
+    if not COLOURS:
         return message
 
     if message.startswith("SYS"):
