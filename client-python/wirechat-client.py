@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import sys
 
+VERSION = "1.0.0" #* Major.Minor.Patch
 COLOURS = True
 if not sys.stdout.isatty():
     COLOURS = False
@@ -38,7 +39,7 @@ def str_to_bool(s):
     else:
         raise ValueError(f"Boolean value expected, got: '{s}'")
 if len(sys.argv) > 1:
-    COLOURS = sys.argv[1]
+    COLOURS = str_to_bool(sys.argv[1])
 if len(sys.argv) > 2:
     LOCALUNSECURE = str_to_bool(sys.argv[2])
 
@@ -79,9 +80,15 @@ nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
 # ---------- websocket handlers ----------
 
 async def receive(ws):
-    async for message in ws:
-        print(colourise(message))
+    try:
+        async for msg in ws:
+            print(colourise(msg))
+    except ConnectionClosed:
+        pass
+    finally:
+        print(colourise("SYS Disconnected."))
 
+from websockets.exceptions import ConnectionClosed
 async def send(ws):
     while True:
         msg = await asyncio.to_thread(input, "")
@@ -96,9 +103,37 @@ async def send(ws):
             break
 
         if msg.lower() == "/who":
-            await ws.send("WHO")            
+            await ws.send("WHO")
+            continue   
 
-        await ws.send(f"MSG {msg}")
+        if msg.lower() == "/version":
+            print(f"LOCALSYS Wirechat client v{VERSION}")
+            await ws.send("VERSION")
+            continue
+
+        if msg.lower() == "/cmds" or msg.lower() == "/help":
+            await ws.send("CMDS")  
+            continue
+
+        if msg.lower() == "/ping":
+            await ws.send("PING")
+            continue
+
+        if msg.lower() == "/uptime":
+            await ws.send("UPTIME")
+            continue
+        
+        if msg.lower() == "/stats":
+            await ws.send("STATS")
+            continue
+
+
+
+        try:
+            await ws.send(f"MSG {msg}")
+        except ConnectionClosed:
+            print("SYS Connection closed by server.")
+            break
 
 # ---------- main ----------
 
@@ -108,16 +143,20 @@ async def main():
         uri = f"ws://{host}:{port}"
     try:
         async with websockets.connect(uri) as ws:
-            # handshake
-            greeting = await ws.recv()
-            print(colourise(greeting))
-
+            # ---- handshake ----
             await ws.send(f"NICK {nickname}")
 
-            await asyncio.gather(
-                receive(ws),
-                send(ws)
+            sender = asyncio.create_task(send(ws))
+            receiver = asyncio.create_task(receive(ws))
+
+            done, pending = await asyncio.wait(
+                {sender, receiver},
+                return_when=asyncio.FIRST_COMPLETED,
             )
+
+            for task in pending:
+                task.cancel()
+
 
     except (OSError, websockets.InvalidURI, websockets.InvalidHandshake) as e:
         print(f"{RED}Connection error: {e}{RESET}")
