@@ -27,7 +27,7 @@ HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
 HISTORY_LINES = 50
-VERSION = "1.0.0" #* MAJOR.MINOR.PATCH
+VERSION = "1.1.0" #* MAJOR.MINOR.PATCH
 
 clients = {}  # websocket -> nickname
 unformattedDate = date.today()
@@ -133,6 +133,7 @@ async def handle_client(websocket):
     peer = websocket.remote_address
     log_safe(log_file("connections"), f"CONNECT_ATTEMPT {peer}")
 
+    await websocket.send("SYS Protocol wirechat/1\n")
     await websocket.send("SYS Send: NICK <name>")
 
     try:
