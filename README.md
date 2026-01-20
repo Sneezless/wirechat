@@ -50,9 +50,9 @@ If you need any of the above, this is the wrong project.
 ```
 .
 ├── server/
-│   └── chat-server.py
+│   └── wirechat-server.py
 ├── client-python/
-│   └── chat-client.py
+│   └── wirechat-client.py
 └── logs/
 ```
 
