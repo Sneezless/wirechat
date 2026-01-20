@@ -3,6 +3,7 @@ import websockets
 from datetime import date, datetime
 import signal
 import os
+import time
 
 # ---------- graceful shutdown ----------
 
@@ -20,16 +21,34 @@ def is_restart():
 
 # ---------- config ----------
 
+SERVER_START_TIME = time.monotonic()
 LOG_DIR = "logs"
 HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
 HISTORY_LINES = 50
+VERSION = "1.0.0" #* MAJOR.MINOR.PATCH
 
 clients = {}  # websocket -> nickname
 unformattedDate = date.today()
 
 os.makedirs(LOG_DIR, exist_ok=True)
+
+COMMAND_HELP = {
+    "WHO":  "List connected users",
+    "CMDS": "Show available commands",
+    "HELP": "An alias of CMDS",
+    "QUIT": "Disconnect from the server",
+    "PING": "A simple PING PONG command",
+    "UPTIME": "Get uptime",
+    "STATS": "Get server stats"
+}
+
+stats = {
+    "messages_session": 0,
+    "messages_total": 0,
+}
+
 
 # ---------- logging ----------
 
@@ -95,6 +114,19 @@ async def shutdown_server():
         except Exception:
             pass
 
+def format_uptime(seconds):
+    mins, sec = divmod(int(seconds), 60)
+    hrs, mins = divmod(mins, 60)
+    days, hrs = divmod(hrs, 24)
+
+    if days:
+        return f"{days}d {hrs}h {mins}m"
+    if hrs:
+        return f"{hrs}h {mins}m"
+    if mins:
+        return f"{mins}m {sec}s"
+    return f"{sec}s"
+
 # ---------- client handler ----------
 
 async def handle_client(websocket):
@@ -147,6 +179,7 @@ async def handle_client(websocket):
     # --- message loop ---
     try:
         async for raw in websocket:
+            raw = raw.strip()
             if len(raw) > MAX_MSG_LEN:
                 await websocket.send("ERR Message too large")
                 log_safe(log_file("errors"), f"MSG_TOO_LARGE {nickname}")
@@ -162,6 +195,36 @@ async def handle_client(websocket):
                 await websocket.send(f"SYS Online ({len(names)}): " + ", ".join(names))
                 continue
 
+            if raw == "VERSION":
+                await websocket.send(f"SYS Wirechat server v{VERSION}")
+                continue
+
+            if raw == "CMDS":
+                lines = ["Available commands:"]
+                for name, desc in sorted(COMMAND_HELP.items()):
+                    lines.append(f"/{name.lower()} – {desc}")
+
+                await websocket.send("SYS " + " | ".join(lines))
+                continue
+
+            if raw == "PING":
+                await websocket.send("PONG")
+                continue
+
+            if raw == "UPTIME":
+                uptime = time.monotonic() - SERVER_START_TIME
+                await websocket.send(f"SYS Uptime: {format_uptime(uptime)}")   
+                continue
+
+            if raw == "STATS":
+                uptime = time.monotonic() - SERVER_START_TIME
+                await websocket.send(
+                    f"SYS Users: {len(clients)} | "
+                    f"Uptime: {format_uptime(uptime)} | "
+                    f"Messages (session): {stats['messages_session']}"
+                )
+                continue
+
             if not raw.startswith("MSG "):
                 await websocket.send("ERR Expected: MSG <text>")
                 log_safe(log_file("errors"), f"BAD_MSG {nickname} {raw!r}")
@@ -172,7 +235,7 @@ async def handle_client(websocket):
             sender = clients.get(websocket, "unknown")
 
             line = f"[{timestamp}] {sender}: {text}"
-
+            stats['messages_session'] += 1
             persist_message(
                 f"{LOG_DIR}/{unformattedDate.isoformat()}-messages.txt",
                 line
