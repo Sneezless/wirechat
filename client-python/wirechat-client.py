@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import sys
 
-VERSION = "1.0.0" #* Major.Minor.Patch
+VERSION = "1.1.0" #* Major.Minor.Patch
 COLOURS = True
 if not sys.stdout.isatty():
     COLOURS = False
@@ -143,11 +143,12 @@ async def main():
         uri = f"ws://{host}:{port}"
     try:
         async with websockets.connect(uri) as ws:
-            # ---- handshake ----
+            receiver = asyncio.create_task(receive(ws))
+
+            # handshake
             await ws.send(f"NICK {nickname}")
 
             sender = asyncio.create_task(send(ws))
-            receiver = asyncio.create_task(receive(ws))
 
             done, pending = await asyncio.wait(
                 {sender, receiver},
@@ -156,6 +157,7 @@ async def main():
 
             for task in pending:
                 task.cancel()
+
 
 
     except (OSError, websockets.InvalidURI, websockets.InvalidHandshake) as e:
