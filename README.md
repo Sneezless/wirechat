@@ -6,7 +6,6 @@ It consists of:
 
 * a Python asyncio WebSocket **server**
 * a Python terminal **client**
-* (optionally) a very simple browser client
 
 This project is intended for **learning, experimentation, and exploration of protocol and server design**.
 It is **not** intended for production use.
@@ -54,8 +53,6 @@ If you need any of the above, this is the wrong project.
 │   └── chat-server.py
 ├── client-python/
 │   └── chat-client.py
-├── client-browser/
-│   └── index.html
 └── logs/
 ```
 
