@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import sys
 
-VERSION = "1.1.3" #* Major.Minor.Patch
+VERSION = "1.2.0" #* Major.Minor.Patch
 COLOURS = True
 if not sys.stdout.isatty():
     COLOURS = False
@@ -80,14 +80,24 @@ if not nickname:
 
 # ---------- websocket handlers ----------
 
+from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
+
 async def receive(ws):
     try:
         async for msg in ws:
             print(colourise(msg))
-    except ConnectionClosed:
+
+    except ConnectionClosedOK:
+        # normal close — stay quiet
         pass
-    finally:
+
+    except ConnectionClosedError:
+        # unexpected close
         print(colourise("SYS Disconnected."))
+
+    except asyncio.CancelledError:
+        # shutdown / reconnect
+        pass
 
 from websockets.exceptions import ConnectionClosed
 async def send(ws):
@@ -135,17 +145,20 @@ async def send(ws):
         except ConnectionClosed:
             print("SYS Connection closed by server.")
             break
+        except (EOFError, KeyboardInterrupt):
+            return
 
 # ---------- main ----------
 
 async def main():
     uri = f"wss://{host}:{port}"
-    if LOCALUNSECURE == True:
+    if LOCALUNSECURE:
         uri = f"ws://{host}:{port}"
-    try:
-        async with websockets.connect(uri) as ws:
-            receiver = asyncio.create_task(receive(ws))
 
+    async with websockets.connect(uri) as ws:
+        receiver = asyncio.create_task(receive(ws))
+
+        try:
             # handshake
             await ws.send(f"NICK {nickname}")
 
@@ -156,32 +169,35 @@ async def main():
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
-            for task in pending:
+        finally:
+            # graceful shutdown ALWAYS runs
+            try:
+                await ws.send("QUIT")
+            except:
+                pass
+
+            for task in (receiver, sender):
                 task.cancel()
 
+            await ws.close()
 
-
-    except (OSError, websockets.InvalidURI, websockets.InvalidHandshake) as e:
-        print(f"{RED}Connection error: {e}{RESET}")
-
-    except KeyboardInterrupt:
-        print(f"{YELLOW}\nDisconnected.{RESET}")
-
-    except Exception as e:
-        print(f"{RED}Client error: {e}{RESET}")
-        raise
 
 async def run_client():
     while True:
         try:
             await main()
-        except KeyboardInterrupt:
-            break
+        except (OSError, websockets.InvalidURI, websockets.InvalidHandshake) as e:
+            print(f"{RED}Connection error: {e}{RESET}")
+        except Exception as e:
+            print(f"{RED}Client error: {e}{RESET}")
+            raise
 
         choice = input("Reconnect? [y/N]: ").strip().lower()
-        if str_to_bool(choice) == False:
+        if not str_to_bool(choice):
             break
+
 try:
     asyncio.run(run_client())
 except KeyboardInterrupt:
-    print("\rDisconnected.")
+    print(f"{YELLOW}\nDisconnected.{RESET}")
+
