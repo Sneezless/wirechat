@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wirechat</title>
+
+<style>
+body {
+    background:#0b0b0b;
+    color:#ddd;
+    font-family: monospace;
+    margin:0;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+}
+
+#top {
+    padding:8px;
+    background:#111;
+    display:flex;
+    gap:8px;
+}
+
+input, button {
+    background:#1b1b1b;
+    color:#ddd;
+    border:1px solid #333;
+    padding:6px;
+}
+
+button {
+    cursor:pointer;
+}
+
+#chat {
+    flex:1;
+    overflow-y:auto;
+    padding:10px;
+    white-space:pre-wrap;
+}
+
+.sys { color:#3bd; }
+.err { color:#f44; }
+.nick { color:#4f4; }
+.time { color:#777; }
+
+#bottom {
+    display:flex;
+    gap:8px;
+    padding:8px;
+    background:#111;
+}
+</style>
+</head>
+
+<body>
+
+<div id="top">
+    <input id="nick" placeholder="nickname">
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+</div>
+
+<div id="chat"></div>
+
+<div id="bottom">
+    <input id="msg" placeholder="Type message or /command" style="flex:1">
+    <button onclick="sendMsg()">Send</button>
+</div>
+
+<script>
+let ws = null;
+
+const chat = document.getElementById("chat");
+const nickInput = document.getElementById("nick");
+const msgInput  = document.getElementById("msg");
+
+function addLine(html, cls="") {
+    const div = document.createElement("div");
+    if (cls) div.className = cls;
+    div.innerHTML = html;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function escapeHTML(s){
+    return s.replace(/[&<>"]/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"
+    }[c]));
+}
+
+function connect(){
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+
+    const nick = nickInput.value.trim();
+    if (!nick){
+        alert("Enter nickname");
+        return;
+    }
+
+    ws = new WebSocket("wss://" + location.host + "/ws");
+
+    ws.onopen = () => {
+        addLine("Connected.", "sys");
+        ws.send("NICK " + nick);
+    };
+
+    ws.onmessage = e => handleLine(e.data);
+
+    ws.onclose = () => {
+        addLine("Disconnected.", "sys");
+    };
+
+    ws.onerror = () => {
+        addLine("Connection error.", "err");
+    };
+}
+
+function disconnect(){
+    if (ws){
+        ws.close();
+        ws = null;
+    }
+}
+
+function handleLine(line){
+    if (line.startsWith("SYS")){
+        addLine(escapeHTML(line), "sys");
+        return;
+    }
+
+    if (line.startsWith("ERR")){
+        addLine(escapeHTML(line), "err");
+        return;
+    }
+
+    if (line.startsWith("MSG ")){
+        const rest = line.slice(4);
+
+        // format: [timestamp] nick: text
+        const match = rest.match(/^\[(.*?)\] (.*?): (.*)$/);
+
+        if (match){
+            const time = escapeHTML(match[1]);
+            const nick = escapeHTML(match[2]);
+            const text = escapeHTML(match[3]);
+
+            addLine(
+                `<span class="time">[${time}]</span> ` +
+                `<span class="nick">${nick}</span>: ` +
+                text
+            );
+        } else {
+            addLine(escapeHTML(rest));
+        }
+        return;
+    }
+
+    addLine(escapeHTML(line));
+}
+
+function sendMsg(){
+    const text = msgInput.value.trim();
+    if (!text) return;
+
+    if (text === "/version"){
+        addLine("LOCALSYS Wirechat client (browser)", "sys");
+        ws.send("VERSION");
+        msgInput.value = "";
+        return;
+    }
+
+    if (text === "/help"){
+        ws.send("CMDS");
+        msgInput.value = "";
+        return;
+    }
+
+    if (text.startsWith("/")){
+        ws.send(text.substring(1).toUpperCase());
+    } else {
+        ws.send("MSG " + text);
+    }
+
+    msgInput.value = "";
+}
+
+msgInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") sendMsg();
+});
+</script>
+
+</body>
+</html>
+
