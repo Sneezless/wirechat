@@ -31,7 +31,6 @@ HISTORY_LINES = 50
 VERSION = "1.1.0" #* MAJOR.MINOR.PATCH
 
 clients = {}  # websocket -> nickname
-unformattedDate = date.today()
 
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -65,7 +64,8 @@ def log_safe(filename, message):
         pass
 
 def log_file(kind):
-    return f"{LOG_DIR}/{unformattedDate.isoformat()}-{kind}.txt"
+    today = date.today().isoformat()
+    return f"{LOG_DIR}/{today}-{kind}.txt"
 
 def persist_message(filename, message):
     with open(filename, "a", encoding="utf-8") as f:
@@ -93,7 +93,8 @@ async def broadcast(message):
         clients.pop(ws, None)
 
 def load_recent_messages():
-    path = f"{LOG_DIR}/{unformattedDate.isoformat()}-messages.txt"
+    today = date.today().isoformat()
+    path = f"{LOG_DIR}/{today}-messages.txt"
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -268,7 +269,6 @@ async def main():
         ping_timeout=10
     ):
         await stop_event.wait()
-        log_safe(log_file("server"), "SERVER_SHUTDOWN")
         await shutdown_server()
 
 
