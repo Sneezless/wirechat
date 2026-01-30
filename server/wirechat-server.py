@@ -28,7 +28,7 @@ HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
 HISTORY_LINES = 50
-VERSION = "1.1.0" #* MAJOR.MINOR.PATCH
+VERSION = "1.1.2" #* MAJOR.MINOR.PATCH
 
 clients = {}  # websocket -> nickname
 
