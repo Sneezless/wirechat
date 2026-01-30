@@ -7,13 +7,18 @@ import time
 
 # ---------- graceful shutdown ----------
 
+# stop_event = asyncio.Event()
+
+# def shutdown():
+#     stop_event.set()
+
+# signal.signal(signal.SIGTERM, lambda *_: shutdown())
+# signal.signal(signal.SIGINT, lambda *_: shutdown())
+
 stop_event = asyncio.Event()
 
-def shutdown():
+def request_shutdown():
     stop_event.set()
-
-signal.signal(signal.SIGTERM, lambda *_: shutdown())
-signal.signal(signal.SIGINT, lambda *_: shutdown())
 
 
 def is_restart():
@@ -263,6 +268,15 @@ async def main():
     log_safe(log_file("server"), "SERVER_START")
     print("WS server listening...")
 
+    # --- register graceful shutdown signals ---
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, request_shutdown)
+        except NotImplementedError:
+            signal.signal(sig, lambda *_: request_shutdown())
+
+    # --- start websocket server ---
     server = await websockets.serve(
         handle_client,
         HOST,
