@@ -240,10 +240,11 @@ async def handle_client(websocket):
 
             line = f"[{timestamp}] {sender}: {text}"
             stats['messages_session'] += 1
+            today = date.today().isoformat()
             persist_message(
-                f"{LOG_DIR}/{unformattedDate.isoformat()}-messages.txt",
+                f"{LOG_DIR}/{today}-messages.txt",
                 line
-            )   
+            )  
 
             await broadcast(f"MSG {line}")
 
