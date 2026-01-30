@@ -37,21 +37,23 @@ VERSION = "1.1.2" #* MAJOR.MINOR.PATCH
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 CONFIG_PATH = os.path.join(BASE_DIR, "config")
-CONFIGADMINTOKEN = True
 
-if CONFIGADMINTOKEN:
-    with open(os.path.join(CONFIG_PATH,"secrets.txt"), "r", encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("ADMIN_TOKEN="):
-                ADMIN_TOKEN = line.strip().split("=",1)[1]
-                
-ENVADMINTOKEN = False
-
-if ENVADMINTOKEN:
+# 1) try environment first (production)
+if "WIRECHAT_ADMIN_TOKEN" in os.environ:
     ADMIN_TOKEN = os.environ["WIRECHAT_ADMIN_TOKEN"]
 
+# 2) fallback to local config (dev)
+else:
+    try:
+        with open(os.path.join(CONFIG_PATH, "secrets.txt"), "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("ADMIN_TOKEN="):
+                    ADMIN_TOKEN = line.strip().split("=",1)[1]
+    except FileNotFoundError:
+        pass
+
 if not ADMIN_TOKEN:
-    raise RuntimeError("WIRECHAT_ADMIN_TOKEN not set")
+    raise RuntimeError("ADMIN_TOKEN not set")
 
 def load_forbidden():
     words = []
