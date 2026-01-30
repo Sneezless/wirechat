@@ -83,7 +83,7 @@ def valid_nickname(nick):
 
 async def broadcast(message):
     dead = []
-    for ws in clients:
+    for ws in list(clients):
         try:
             await ws.send(message)
         except Exception as e:
@@ -263,17 +263,24 @@ async def main():
     log_safe(log_file("server"), "SERVER_START")
     print("WS server listening...")
 
-    async with websockets.serve(
+    server = await websockets.serve(
         handle_client,
         HOST,
         PORT,
         ping_interval=30,
         ping_timeout=10
-    ):
-        await stop_event.wait()
-        await shutdown_server()
+    )
 
+    await stop_event.wait()
+
+    # stop accepting new connections
+    server.close()
+    await server.wait_closed()
+
+    # notify + close clients
+    await shutdown_server()
 
     log_safe(log_file("server"), "SERVER_STOP")
+
 
 asyncio.run(main())
