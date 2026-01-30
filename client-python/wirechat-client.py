@@ -75,7 +75,7 @@ host = input(f"{YELLOW}Host (default: chat.sneezless.com): {RESET}").strip() or 
 port_input = input(f"{YELLOW}Port (default: 443): {RESET}").strip()
 port = int(port_input) if port_input else 443
 nickname = None
-if not nickname:
+if not nickname or nickname == None:
     nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
 
 # ---------- websocket handlers ----------
