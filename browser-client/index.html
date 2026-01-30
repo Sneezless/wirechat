@@ -189,11 +189,16 @@ function sendMsg(){
 
     // ---- server commands / messages ----
 
-    if (text.startsWith("/")){
-        ws.send(text.substring(1).toUpperCase());
+    if (text.startsWith("/")) {
+        const parts = text.substring(1).trim().split(/\s+/);
+        const cmd = parts[0].toUpperCase();
+        const args = parts.slice(1).join(" ");
+    
+        ws.send(args ? `${cmd} ${args}` : cmd);
     } else {
         ws.send("MSG " + text);
     }
+
 
     msgInput.value = "";
 }
