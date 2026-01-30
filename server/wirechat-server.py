@@ -22,7 +22,8 @@ def is_restart():
 # ---------- config ----------
 
 SERVER_START_TIME = time.monotonic()
-LOG_DIR = "logs"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
 HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
