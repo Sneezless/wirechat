@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import sys
 
-VERSION = "1.2.1"  #* Major.Minor.Patch
+VERSION = "1.2.3"  #* Major.Minor.Patch
 
 COLOURS = True
 if not sys.stdout.isatty():
@@ -172,18 +172,7 @@ async def main():
         receiver = asyncio.create_task(receive(ws))
 
         try:
-            # ---- handshake ----
             await ws.send(f"NICK {nickname}")
-
-            # wait for server response (ERR or normal SYS flow)
-            resp = await ws.recv()
-
-            if resp.startswith("ERR"):
-                print(colourise(resp))
-                return
-
-            # print first SYS message if it's not an error
-            print(colourise(resp))
 
             sender = asyncio.create_task(send(ws))
 
