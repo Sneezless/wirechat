@@ -161,21 +161,33 @@ function handleLine(line){
 }
 
 function sendMsg(){
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
     const text = msgInput.value.trim();
     if (!text) return;
 
-    if (text === "/version"){
-        addLine("LOCALSYS Wirechat client (browser)", "sys");
+    // ---- local commands ----
+
+    if (text === "/clear") {
+        chat.innerHTML = "";
+        msgInput.value = "";
+        return;
+    }
+
+    if (text === "/version") {
+        addLine("LOCALSYS Wirechat browser client", "sys");
         ws.send("VERSION");
         msgInput.value = "";
         return;
     }
 
-    if (text === "/help"){
+    if (text === "/help") {
         ws.send("CMDS");
         msgInput.value = "";
         return;
     }
+
+    // ---- server commands / messages ----
 
     if (text.startsWith("/")){
         ws.send(text.substring(1).toUpperCase());
@@ -185,6 +197,7 @@ function sendMsg(){
 
     msgInput.value = "";
 }
+
 
 msgInput.addEventListener("keydown", e => {
     if (e.key === "Enter") sendMsg();
