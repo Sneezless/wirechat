@@ -4,6 +4,8 @@ from datetime import date, datetime
 import signal
 import os
 import time
+import re
+from websockets import ConnectionClosed
 
 # ---------- graceful shutdown ----------
 
@@ -27,15 +29,66 @@ def is_restart():
 # ---------- config ----------
 
 SERVER_START_TIME = time.monotonic()
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOG_DIR = os.path.join(BASE_DIR, "logs")
 HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
 HISTORY_LINES = 50
 VERSION = "1.1.2" #* MAJOR.MINOR.PATCH
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+CONFIG_PATH = os.path.join(BASE_DIR, "config")
+CONFIGADMINTOKEN = True
+
+if CONFIGADMINTOKEN:
+    with open(os.path.join(CONFIG_PATH,"secrets.txt"), "r", encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("ADMIN_TOKEN="):
+                ADMIN_TOKEN = line.strip().split("=",1)[1]
+                
+ENVADMINTOKEN = False
+
+if ENVADMINTOKEN:
+    ADMIN_TOKEN = os.environ["WIRECHAT_ADMIN_TOKEN"]
+
+if not ADMIN_TOKEN:
+    raise RuntimeError("WIRECHAT_ADMIN_TOKEN not set")
+
+def load_forbidden():
+    words = []
+    with open(os.path.join(CONFIG_PATH,"forbidden.txt"), "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip().lower()
+            if line:
+                words.append(line)
+    return words
+
+FORBIDDEN = load_forbidden()
+FORBIDDEN_PATTERNS = []
+
+for word in FORBIDDEN:
+    escaped = re.escape(word)
+
+    if " " in word:
+        # normal phrase (with spaces)
+        FORBIDDEN_PATTERNS.append(
+            re.compile(escaped, re.IGNORECASE)
+        )
+
+        # merged phrase (no spaces)
+        merged = re.escape(word.replace(" ", ""))
+        FORBIDDEN_PATTERNS.append(
+            re.compile(merged, re.IGNORECASE)
+        )
+
+    else:
+        # single word with boundaries
+        FORBIDDEN_PATTERNS.append(
+            re.compile(rf"\b{escaped}\b", re.IGNORECASE)
+        )
 
 clients = {}  # websocket -> nickname
+admins = set()
+kicked = set()
 
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -47,7 +100,12 @@ COMMAND_HELP = {
     "QUIT": "Disconnect from the server",
     "PING": "A simple PING PONG command",
     "UPTIME": "Get uptime",
-    "STATS": "Get server stats"
+    "STATS": "Get server stats",
+    "ADMIN": "Enter admin token"
+}
+
+COMMAND_ADMIN = {
+    "KICK": "Kick a user by nickname"
 }
 
 stats = {
@@ -135,6 +193,41 @@ def format_uptime(seconds):
         return f"{mins}m {sec}s"
     return f"{sec}s"
 
+LEET_MAP = str.maketrans({
+    "0": "o",
+    "1": "i",
+    "3": "e",
+    "4": "a",
+    "5": "s",
+    "7": "t",
+    "@": "a",
+    "$": "s",
+    "!": "i",
+})
+
+def normalize(text):
+    text = text.lower()
+    text = text.translate(LEET_MAP)
+
+    # remove separators people use to bypass filters
+    text = re.sub(r"[\W_]+", " ", text)
+
+    # collapse spaces
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+
+def contains_forbidden(text):
+    norm = normalize(text)
+
+    for pattern in FORBIDDEN_PATTERNS:
+        if pattern.search(norm):
+            return True
+
+    return False
+
+
 # ---------- client handler ----------
 
 async def handle_client(websocket):
@@ -167,6 +260,11 @@ async def handle_client(websocket):
     if nickname in clients.values():
         await websocket.send("ERR Nickname already in use")
         log_safe(log_file("errors"), f"DUPLICATE_NICK {peer} {nickname}")
+        await websocket.close()
+        return
+    
+    if contains_forbidden(nickname):
+        await websocket.send("ERR Nickname contains forbidden words")
         await websocket.close()
         return
 
@@ -214,6 +312,14 @@ async def handle_client(websocket):
                     lines.append(f"/{name.lower()} – {desc}")
 
                 await websocket.send("SYS " + " | ".join(lines))
+                
+                if websocket in admins:
+                    lines = ["Available admin commands:"]
+                    for name, desc in sorted(COMMAND_ADMIN.items()):
+                        lines.append(f"/{name.lower()} – {desc}")
+
+                    await websocket.send("SYS " + " | ".join(lines))
+                    
                 continue
 
             if raw == "PING":
@@ -233,13 +339,66 @@ async def handle_client(websocket):
                     f"Messages (session): {stats['messages_session']}"
                 )
                 continue
+            
+            if raw.startswith("ADMIN "):
+                token = raw[6:].strip()
+
+                if token == ADMIN_TOKEN:
+                    admins.add(websocket)
+                    await websocket.send("SYS Admin privileges granted")
+                    log_safe(log_file("server"), f"ADMIN_GRANTED {clients.get(websocket)}")
+                else:
+                    await websocket.send("ERR Invalid admin token")
+
+                continue
+            
+            if raw.startswith("KICK "):
+                if websocket not in admins:
+                    await websocket.send("ERR Admin only command")
+                    continue
+
+                target = raw[5:].strip()
+
+                # find websocket for that nickname
+                target_ws = None
+                for ws, name in clients.items():
+                    if name.lower() == target.lower():
+                        target_ws = ws
+                        break
+
+                if not target_ws:
+                    await websocket.send(f"ERR User not found: {target}")
+                    continue
+
+                name = clients.get(target_ws)
+
+                # mark as kicked and close connection
+                kicked.add(target_ws)
+                try:
+                    await target_ws.send("SYS You were kicked by an admin")
+                except:
+                    pass
+
+                await target_ws.close(code=4000, reason="Kicked by admin")
+
+                if name:
+                    await broadcast(f"SYS {name} was kicked by an admin")
+                    log_safe(log_file("server"), f"KICK {name}")
+
+                continue
 
             if not raw.startswith("MSG "):
                 await websocket.send("ERR Expected: MSG <text>")
                 log_safe(log_file("errors"), f"BAD_MSG {nickname} {raw!r}")
                 continue
+            
+
 
             text = raw[4:].strip()
+            
+            if contains_forbidden(text):
+                await websocket.send("ERR Message contains forbidden content")
+                continue
             timestamp = datetime.now().isoformat(timespec="seconds")
             sender = clients.get(websocket, "unknown")
 
@@ -253,14 +412,24 @@ async def handle_client(websocket):
 
             await broadcast(f"MSG {line}")
 
+    except ConnectionClosed:
+        # normal disconnect (quit, kick, network drop)
+        pass
+
     except Exception as e:
         log_safe(log_file("errors"), f"CLIENT_ERROR {nickname} {e}")
 
     finally:
+        admins.discard(websocket)
         left = clients.pop(websocket, None)
+
         if left:
             log_safe(log_file("connections"), f"DISCONNECT {left}")
-            await broadcast(f"SYS {left} left the chat!")
+
+            if websocket in kicked:
+                kicked.discard(websocket)
+            else:
+                await broadcast(f"SYS {left} left the chat!")
 
 # ---------- main ----------
 
