@@ -36,6 +36,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 COMMAND_HELP = {
     "WHO":  "List connected users",
+    "VERSION": "Get server and client version",
     "CMDS": "Show available commands",
     "HELP": "An alias of CMDS",
     "QUIT": "Disconnect from the server",
