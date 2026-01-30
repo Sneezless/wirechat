@@ -2,12 +2,14 @@ import asyncio
 import websockets
 import sys
 
-VERSION = "1.2.0" #* Major.Minor.Patch
+VERSION = "1.2.1"  #* Major.Minor.Patch
+
 COLOURS = True
 if not sys.stdout.isatty():
     COLOURS = False
 
 LOCALUNSECURE = False
+
 # ---------- colours ----------
 
 RESET  = "\033[0m"
@@ -15,33 +17,39 @@ RED    = "\033[31m"
 GREEN  = "\033[32m"
 CYAN   = "\033[36m"
 YELLOW = "\033[33m"
-DIM = "\033[90m"
+DIM    = "\033[90m"
+
+# ---------- helpers ----------
 
 def str_to_bool(s):
-    """
-    Converts a string to a boolean, handling various case-insensitive truthy/falsy values.
-
-    Truthy values: 'y', 'yes', 't', 'true', 'on', '1', True (if passed directly)
-    Falsy values:  'n', 'no', 'f', 'false', 'off', '0', False (if passed directly)
-    """
     if isinstance(s, bool):
         return s
     if not isinstance(s, str):
-        # Handle types like int, float, etc. if needed, but strings are common
-        raise TypeError("Expected string or boolean value")
+        raise TypeError("Expected string or boolean")
 
-    s = s.strip().lower() # Standardize the input
+    s = s.strip().lower()
 
     if s in ('yes', 'true', 't', 'y', '1', 'on'):
         return True
-    elif s in ('no', 'false', 'f', 'n', '0', 'off'):
+    if s in ('no', 'false', 'f', 'n', '0', 'off'):
         return False
-    else:
-        raise ValueError(f"Boolean value expected, got: '{s}'")
+
+    raise ValueError(f"Boolean expected, got '{s}'")
+
+
 if len(sys.argv) > 1:
     COLOURS = str_to_bool(sys.argv[1])
 if len(sys.argv) > 2:
     LOCALUNSECURE = str_to_bool(sys.argv[2])
+
+
+def local_valid_nickname(nick):
+    return (
+        1 <= len(nick) <= 20
+        and nick.isprintable()
+        and " " not in nick
+    )
+
 
 def colourise(message):
     if not COLOURS:
@@ -69,18 +77,25 @@ def colourise(message):
 
     return message
 
-# ---------- input prompts ----------
+
+# ---------- connection info ----------
 
 host = input(f"{YELLOW}Host (default: chat.sneezless.com): {RESET}").strip() or "chat.sneezless.com"
+
 port_input = input(f"{YELLOW}Port (default: 443): {RESET}").strip()
 port = int(port_input) if port_input else 443
+
 nickname = None
-if not nickname or nickname == None:
-    nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
+
 
 # ---------- websocket handlers ----------
 
-from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
+from websockets.exceptions import (
+    ConnectionClosedOK,
+    ConnectionClosedError,
+    ConnectionClosed
+)
+
 
 async def receive(ws):
     try:
@@ -88,67 +103,65 @@ async def receive(ws):
             print(colourise(msg))
 
     except ConnectionClosedOK:
-        # normal close — stay quiet
         pass
 
     except ConnectionClosedError:
-        # unexpected close
         print(colourise("SYS Disconnected."))
 
     except asyncio.CancelledError:
-        # shutdown / reconnect
         pass
 
-from websockets.exceptions import ConnectionClosed
+
 async def send(ws):
     while True:
-        msg = await asyncio.to_thread(input, "")
-        msg = msg.strip()
-
-        if not msg:
-            continue
-
-        if msg.lower() in {"/quit", "/exit"}:
-            await ws.send("QUIT")
-            await ws.close()
-            break
-
-        if msg.lower() == "/who":
-            await ws.send("WHO")
-            continue   
-
-        if msg.lower() == "/version":
-            print(colourise(f"LOCALSYS Wirechat client v{VERSION}"))
-            await ws.send("VERSION")
-            continue
-
-        if msg.lower() == "/cmds" or msg.lower() == "/help":
-            await ws.send("CMDS")  
-            continue
-
-        if msg.lower() == "/ping":
-            await ws.send("PING")
-            continue
-
-        if msg.lower() == "/uptime":
-            await ws.send("UPTIME")
-            continue
-        
-        if msg.lower() == "/stats":
-            await ws.send("STATS")
-            continue
-
-
-
         try:
+            msg = await asyncio.to_thread(input, "")
+            msg = msg.strip()
+
+            if not msg:
+                continue
+
+            if msg.lower() in {"/quit", "/exit"}:
+                await ws.send("QUIT")
+                await ws.close()
+                break
+
+            if msg.lower() == "/who":
+                await ws.send("WHO")
+                continue
+
+            if msg.lower() == "/version":
+                print(colourise(f"LOCALSYS Wirechat client v{VERSION}"))
+                await ws.send("VERSION")
+                continue
+
+            if msg.lower() in {"/cmds", "/help"}:
+                await ws.send("CMDS")
+                continue
+
+            if msg.lower() == "/ping":
+                await ws.send("PING")
+                continue
+
+            if msg.lower() == "/uptime":
+                await ws.send("UPTIME")
+                continue
+
+            if msg.lower() == "/stats":
+                await ws.send("STATS")
+                continue
+
             await ws.send(f"MSG {msg}")
+
         except ConnectionClosed:
-            print("SYS Connection closed by server.")
+            print(colourise("SYS Connection closed by server."))
             break
+
         except (EOFError, KeyboardInterrupt):
             return
 
-# ---------- main ----------
+
+# ---------- main connection ----------
 
 async def main():
     uri = f"wss://{host}:{port}"
@@ -159,21 +172,30 @@ async def main():
         receiver = asyncio.create_task(receive(ws))
 
         try:
-            # handshake
+            # ---- handshake ----
             await ws.send(f"NICK {nickname}")
+
+            # wait for server response (ERR or normal SYS flow)
+            resp = await ws.recv()
+
+            if resp.startswith("ERR"):
+                print(colourise(resp))
+                return
+
+            # print first SYS message if it's not an error
+            print(colourise(resp))
 
             sender = asyncio.create_task(send(ws))
 
-            done, pending = await asyncio.wait(
+            await asyncio.wait(
                 {sender, receiver},
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
         finally:
-            # graceful shutdown ALWAYS runs
             try:
                 await ws.send("QUIT")
-            except:
+            except Exception:
                 pass
 
             for task in (receiver, sender):
@@ -182,22 +204,44 @@ async def main():
             await ws.close()
 
 
+# ---------- reconnect loop ----------
+
 async def run_client():
+    global nickname
+
     while True:
+
+        # ---- nickname prompt + validation ----
+        while True:
+            nickname = input(f"{YELLOW}Choose a nickname: {RESET}").strip()
+
+            if local_valid_nickname(nickname):
+                break
+
+            print(f"{RED}Invalid nickname (1–20 chars, no spaces).{RESET}")
+
         try:
             await main()
+
         except (OSError, websockets.InvalidURI, websockets.InvalidHandshake) as e:
             print(f"{RED}Connection error: {e}{RESET}")
+
         except Exception as e:
             print(f"{RED}Client error: {e}{RESET}")
             raise
 
         choice = input("Reconnect? [y/N]: ").strip().lower()
-        if not str_to_bool(choice):
+
+        try:
+            if not str_to_bool(choice):
+                break
+        except ValueError:
             break
+
+
+# ---------- entry ----------
 
 try:
     asyncio.run(run_client())
 except KeyboardInterrupt:
     print(f"{YELLOW}\nDisconnected.{RESET}")
-
