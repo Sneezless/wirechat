@@ -222,12 +222,13 @@ LEET_MAP = str.maketrans({
     "!": "i",
 })
 
-def normalize(text):
+def normalise(text):
     text = text.lower()
     text = text.translate(LEET_MAP)
 
     # remove separators people use to bypass filters
     text = re.sub(r"[\W_]+", " ", text)
+    text = re.sub(r"[\u200b\u200c\u200d]+", "", text)
 
     # collapse spaces
     text = re.sub(r"\s+", " ", text).strip()
@@ -236,7 +237,7 @@ def normalize(text):
 
 
 def contains_forbidden(text):
-    norm = normalize(text)
+    norm = normalise(text)
 
     for pattern in FORBIDDEN_PATTERNS:
         if pattern.search(norm):
