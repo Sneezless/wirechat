@@ -169,18 +169,30 @@ def load_recent_messages():
         return []
     
 async def shutdown_server():
-    if is_restart():
-        await broadcast("SYS Server restarting")
+    restarting = is_restart()
+
+    if restarting:
+        msg = "SYS Server restarting"
         log_safe(log_file("server"), "SERVER_RESTART")
     else:
-        await broadcast("SYS Server shutting down")
+        msg = "SYS Server shutting down"
         log_safe(log_file("server"), "SERVER_SHUTDOWN")
 
+    # notify and close all clients
     for ws in list(clients.keys()):
         try:
-            await ws.close(code=1001, reason="Server restart" if is_restart() else "Server shutdown")
+            await ws.send(msg)
         except Exception:
             pass
+
+        try:
+            await ws.close(
+                code=1001,
+                reason="Server restart" if restarting else "Server shutdown"
+            )
+        except Exception:
+            pass
+
 
 def format_uptime(seconds):
     mins, sec = divmod(int(seconds), 60)
@@ -456,14 +468,15 @@ async def main():
         ping_timeout=10
     )
 
+    # --- wait for shutdown signal ---
     await stop_event.wait()
 
-    # stop accepting new connections
+    # --- notify + close clients first ---
+    await shutdown_server()
+
+    # --- stop accepting new connections ---
     server.close()
     await server.wait_closed()
-
-    # notify + close clients
-    await shutdown_server()
 
     log_safe(log_file("server"), "SERVER_STOP")
 
