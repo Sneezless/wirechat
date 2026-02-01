@@ -38,6 +38,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 CONFIG_PATH = os.path.join(BASE_DIR, "config")
 
+ADMIN_TOKEN = None
 # 1) try environment first (production)
 if "WIRECHAT_ADMIN_TOKEN" in os.environ:
     ADMIN_TOKEN = os.environ["WIRECHAT_ADMIN_TOKEN"]
@@ -111,8 +112,7 @@ COMMAND_ADMIN = {
 }
 
 stats = {
-    "messages_session": 0,
-    "messages_total": 0,
+    "messages_session": 0
 }
 
 
@@ -178,20 +178,23 @@ async def shutdown_server():
         msg = "SYS Server shutting down"
         log_safe(log_file("server"), "SERVER_SHUTDOWN")
 
-    # notify and close all clients
     for ws in list(clients.keys()):
         try:
-            await ws.send(msg)
+            await asyncio.wait_for(ws.send(msg), timeout=2)
         except Exception:
             pass
 
         try:
-            await ws.close(
-                code=1001,
-                reason="Server restart" if restarting else "Server shutdown"
+            await asyncio.wait_for(
+                ws.close(
+                    code=1001,
+                    reason="Server restart" if restarting else "Server shutdown"
+                ),
+                timeout=2
             )
         except Exception:
             pass
+
 
 
 def format_uptime(seconds):
@@ -450,6 +453,10 @@ async def handle_client(websocket):
 async def main():
     log_safe(log_file("server"), "SERVER_START")
     print("WS server listening...")
+    try:
+        os.remove("/run/chat-server.restart")
+    except FileNotFoundError:
+        pass
 
     # --- register graceful shutdown signals ---
     loop = asyncio.get_running_loop()
