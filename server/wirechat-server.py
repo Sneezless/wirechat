@@ -22,10 +22,6 @@ stop_event = asyncio.Event()
 def request_shutdown():
     stop_event.set()
 
-
-def is_restart():
-    return os.path.exists("/run/chat-server.restart")
-
 # ---------- config ----------
 
 SERVER_START_TIME = time.monotonic()
@@ -115,6 +111,10 @@ stats = {
     "messages_session": 0
 }
 
+RESTART_FLAG = os.path.join(BASE_DIR, ".restart")
+
+def is_restart():
+    return os.path.exists(RESTART_FLAG)
 
 # ---------- logging ----------
 
@@ -454,7 +454,7 @@ async def main():
     log_safe(log_file("server"), "SERVER_START")
     print("WS server listening...")
     try:
-        os.remove("/run/chat-server.restart")
+        os.remove(RESTART_FLAG)
     except FileNotFoundError:
         pass
 
