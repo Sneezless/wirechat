@@ -45,6 +45,13 @@ button {
 .nick { color:#4f4; }
 .time { color:#777; }
 
+.highlight {
+    background:#333;
+    color:#ffd700;
+    padding:1px 3px;
+    border-radius:3px;
+}
+
 #bottom {
     display:flex;
     gap:8px;
@@ -71,6 +78,8 @@ button {
 
 <script>
 let ws = null;
+let myNick = "";
+const CLIENT_VERSION = "1.1.2";
 
 const chat = document.getElementById("chat");
 const nickInput = document.getElementById("nick");
@@ -94,6 +103,7 @@ function connect(){
     if (ws && ws.readyState === WebSocket.OPEN) return;
 
     const nick = nickInput.value.trim();
+    myNick = nick;
     if (!nick){
         alert("Enter nickname");
         return;
@@ -144,7 +154,12 @@ function handleLine(line){
         if (match){
             const time = escapeHTML(match[1]);
             const nick = escapeHTML(match[2]);
-            const text = escapeHTML(match[3]);
+            let text = escapeHTML(match[3]);
+            
+            if (myNick) {
+                const re = new RegExp(`\\b${myNick}\\b`, "gi");
+                text = text.replace(re, `<span class="highlight">${myNick}</span>`);
+            }
 
             addLine(
                 `<span class="time">[${time}]</span> ` +
@@ -175,7 +190,7 @@ function sendMsg(){
     }
 
     if (text === "/version") {
-        addLine("LOCALSYS Wirechat browser client", "sys");
+        addLine(`LOCALSYS Wirechat browser client v${CLIENT_VERSION}`, "sys");
         ws.send("VERSION");
         msgInput.value = "";
         return;
