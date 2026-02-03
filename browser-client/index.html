@@ -78,12 +78,26 @@ button {
 
 <script>
 let ws = null;
-let myNick = "";
+let nick = "";
+
 const CLIENT_VERSION = "1.1.2";
 
 const chat = document.getElementById("chat");
 const nickInput = document.getElementById("nick");
 const msgInput  = document.getElementById("msg");
+
+
+// -------- load saved values --------
+
+const savedNick = localStorage.getItem("wirechat_nick");
+if (savedNick) {
+    nickInput.value = savedNick;
+}
+
+const savedAdminToken = localStorage.getItem("wirechat_admin_token");
+
+
+// -------- helpers --------
 
 function addLine(html, cls="") {
     const div = document.createElement("div");
@@ -95,25 +109,37 @@ function addLine(html, cls="") {
 
 function escapeHTML(s){
     return s.replace(/[&<>"]/g, c => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"
+        "&":"&amp;",
+        "<":"&lt;",
+        ">":"&gt;",
+        "\"":"&quot;"
     }[c]));
 }
+
+
+// -------- connection --------
 
 function connect(){
     if (ws && ws.readyState === WebSocket.OPEN) return;
 
-    const nick = nickInput.value.trim();
-    myNick = nick;
+    nick = nickInput.value.trim();
+
     if (!nick){
         alert("Enter nickname");
         return;
     }
+
+    localStorage.setItem("wirechat_nick", nick);
 
     ws = new WebSocket("wss://" + location.host + "/ws");
 
     ws.onopen = () => {
         addLine("Connected.", "sys");
         ws.send("NICK " + nick);
+
+        if (savedAdminToken) {
+            ws.send("ADMIN " + savedAdminToken);
+        }
     };
 
     ws.onmessage = e => handleLine(e.data);
@@ -134,7 +160,11 @@ function disconnect(){
     }
 }
 
+
+// -------- message handling --------
+
 function handleLine(line){
+
     if (line.startsWith("SYS")){
         addLine(escapeHTML(line), "sys");
         return;
@@ -153,17 +183,19 @@ function handleLine(line){
 
         if (match){
             const time = escapeHTML(match[1]);
-            const nick = escapeHTML(match[2]);
+            const sender = escapeHTML(match[2]);
+
             let text = escapeHTML(match[3]);
-            
-            if (myNick) {
-                const re = new RegExp(`\\b${myNick}\\b`, "gi");
-                text = text.replace(re, `<span class="highlight">${myNick}</span>`);
+
+            // ---- nickname highlight ----
+            if (nick) {
+                const re = new RegExp(`\\b${nick}\\b`, "gi");
+                text = text.replace(re, `<span class="highlight">${nick}</span>`);
             }
 
             addLine(
                 `<span class="time">[${time}]</span> ` +
-                `<span class="nick">${nick}</span>: ` +
+                `<span class="nick">${sender}</span>: ` +
                 text
             );
         } else {
@@ -174,6 +206,9 @@ function handleLine(line){
 
     addLine(escapeHTML(line));
 }
+
+
+// -------- sending --------
 
 function sendMsg(){
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -196,8 +231,12 @@ function sendMsg(){
         return;
     }
 
-    if (text === "/help") {
-        ws.send("CMDS");
+    if (text.startsWith("/admin ")) {
+        const token = text.slice(7).trim();
+        if (token) {
+            localStorage.setItem("wirechat_admin_token", token);
+            ws.send("ADMIN " + token);
+        }
         msgInput.value = "";
         return;
     }
@@ -214,10 +253,11 @@ function sendMsg(){
         ws.send("MSG " + text);
     }
 
-
     msgInput.value = "";
 }
 
+
+// -------- enter key --------
 
 msgInput.addEventListener("keydown", e => {
     if (e.key === "Enter") sendMsg();
@@ -226,4 +266,3 @@ msgInput.addEventListener("keydown", e => {
 
 </body>
 </html>
-
