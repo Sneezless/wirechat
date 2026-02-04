@@ -29,7 +29,7 @@ HOST = "127.0.0.1"
 PORT = 12345
 MAX_MSG_LEN = 2048
 HISTORY_LINES = 50
-VERSION = "1.1.2" #* MAJOR.MINOR.PATCH
+VERSION = "1.2.1" #* MAJOR.MINOR.PATCH
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 CONFIG_PATH = os.path.join(BASE_DIR, "config")
@@ -100,7 +100,8 @@ COMMAND_HELP = {
     "PING": "A simple PING PONG command",
     "UPTIME": "Get uptime",
     "STATS": "Get server stats",
-    "ADMIN": "Enter admin token"
+    "ADMIN": "Enter admin token",
+    "IMG": "Sends an image"
 }
 
 COMMAND_ADMIN = {
