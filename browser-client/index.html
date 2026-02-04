@@ -57,7 +57,7 @@ button {
     gap:8px;
     padding:8px;
     background:#111;
-}
+}    
 </style>
 </head>
 
@@ -292,6 +292,21 @@ function sendMsg(){
 
 msgInput.addEventListener("keydown", e => {
     if (e.key === "Enter") sendMsg();
+
+chat.addEventListener("click", e => {
+    if (e.target.tagName === "IMG") {
+
+        const current = e.target.style.maxWidth;
+
+        // toggle between normal and small thumbnail
+        if (current === "300px") {
+            e.target.style.maxWidth = "120px";   // shrink size (adjust if you want)
+        } else {
+            e.target.style.maxWidth = "300px";   // normal size
+        }
+    }
+});
+});
 });
 </script>
 
