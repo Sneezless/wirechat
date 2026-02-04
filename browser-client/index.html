@@ -292,6 +292,7 @@ function sendMsg(){
 
 msgInput.addEventListener("keydown", e => {
     if (e.key === "Enter") sendMsg();
+});
 
 chat.addEventListener("click", e => {
     if (e.target.tagName === "IMG") {
@@ -305,8 +306,6 @@ chat.addEventListener("click", e => {
             e.target.style.maxWidth = "300px";   // normal size
         }
     }
-});
-});
 });
 </script>
 
