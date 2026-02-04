@@ -406,11 +406,16 @@ async def handle_client(websocket):
 
                 continue
             
-            if raw.startswith("IMG "):
+            if raw.startswith("IMG"):
 
-                url = raw[4:].strip()
+                parts = raw.split(" ", 1)
 
-                # basic validation
+                if len(parts) == 1 or not parts[1].strip():
+                    await websocket.send("ERR IMG requires a URL")
+                    continue
+
+                url = parts[1].strip()
+
                 if not re.match(r"^https?://\S+\.(png|jpe?g|gif|webp)$", url, re.I):
                     await websocket.send("ERR Invalid image URL")
                     continue
@@ -420,7 +425,7 @@ async def handle_client(websocket):
 
                 line = f"[{timestamp}] {sender} {url}"
 
-                stats['messages_session'] += 1
+                stats["messages_session"] += 1
 
                 persist_message(
                     f"{LOG_DIR}/{date.today().isoformat()}-messages.txt",
@@ -429,6 +434,8 @@ async def handle_client(websocket):
 
                 await broadcast(f"IMG {line}")
                 continue
+
+
 
             if not raw.startswith("MSG "):
                 await websocket.send("ERR Expected: MSG <text>")
