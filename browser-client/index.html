@@ -193,9 +193,7 @@ function handleLine(line){
         addLine(
             `<span class="time">[${time}]</span> ` +
             `<span class="nick">${sender}</span>: ` +
-            `<a href="${url}" target="_blank">
-                <img src="${url}" style="max-width:200px; max-height:300px; object-fit:contain;">
-             </a>`
+            `<img src="${url}" style="max-width:200px; max-height:300px; object-fit:contain;">`
         );
 
         return;
@@ -313,6 +311,13 @@ chat.addEventListener("click", e => {
         }
     }
 });
+
+chat.addEventListener("dblclick", e => {
+    if (e.target.tagName === "IMG") {
+        window.open(e.target.src, "_blank");
+    }
+});
+
 </script>
 
 </body>
