@@ -193,7 +193,7 @@ function handleLine(line){
         addLine(
             `<span class="time">[${time}]</span> ` +
             `<span class="nick">${sender}</span>: ` +
-            `<img src="${url}" style="max-width:300px; display:block; margin-top:4px;">`
+            `<img src="${url}" style="max-width:200px; display:block; margin-top:4px;">`
         );
 
         return;
@@ -300,10 +300,10 @@ chat.addEventListener("click", e => {
         const current = e.target.style.maxWidth;
 
         // toggle between normal and small thumbnail
-        if (current === "300px") {
-            e.target.style.maxWidth = "120px";   // shrink size (adjust if you want)
+        if (current === "200px") {
+            e.target.style.maxWidth = "80px";   // shrink size (adjust if you want)
         } else {
-            e.target.style.maxWidth = "300px";   // normal size
+            e.target.style.maxWidth = "200px";   // normal size
         }
     }
 });
