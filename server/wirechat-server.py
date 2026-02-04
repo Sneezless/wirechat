@@ -436,7 +436,7 @@ async def handle_client(websocket):
 
                 url = parts[1].strip()
 
-                if not re.match(r"^https?://\S+\.(png|jpe?g|gif|webp)$", url, re.I):
+                if not re.match(r"^https?://\S+$", url):
                     await websocket.send("ERR Invalid image URL")
                     continue
 

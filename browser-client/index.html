@@ -193,7 +193,9 @@ function handleLine(line){
         addLine(
             `<span class="time">[${time}]</span> ` +
             `<span class="nick">${sender}</span>: ` +
-            `<img src="${url}" style="max-width:200px; display:block; margin-top:4px;">`
+            `<a href="${url}" target="_blank">
+                <img src="${url}" style="max-width:200px; max-height:300px; object-fit:contain;">
+             </a>`
         );
 
         return;
@@ -297,13 +299,17 @@ msgInput.addEventListener("keydown", e => {
 chat.addEventListener("click", e => {
     if (e.target.tagName === "IMG") {
 
-        const current = e.target.style.maxWidth;
+        const w = e.target.style.maxWidth;
+        const h = e.target.style.maxHeight;
 
-        // toggle between normal and small thumbnail
-        if (current === "200px") {
-            e.target.style.maxWidth = "80px";   // shrink size (adjust if you want)
+        if (w === "200px" && h === "300px") {
+            // shrink
+            e.target.style.maxWidth  = "80px";
+            e.target.style.maxHeight = "120px";
         } else {
-            e.target.style.maxWidth = "200px";   // normal size
+            // normal
+            e.target.style.maxWidth  = "200px";
+            e.target.style.maxHeight = "300px";
         }
     }
 });
