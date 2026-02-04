@@ -298,7 +298,27 @@ async def handle_client(websocket):
         )
 
         for line in history:
-            await websocket.send(f"MSG {line.strip()}")
+            line = line.strip()
+
+            # replay images properly
+            if ": [IMG] " in line:
+                # format: [time] nick: [IMG] url
+                prefix, url = line.split(": [IMG] ", 1)
+
+                # prefix is "[time] nick"
+                parts = prefix.split(" ", 1)
+
+                if len(parts) == 2:
+                    timestamp = parts[0][1:-1]  # remove [ ]
+                    sender = parts[1]
+
+                    await websocket.send(f"IMG [{timestamp}] {sender} {url}")
+                else:
+                    await websocket.send(f"MSG {line}")
+
+            else:
+                await websocket.send(f"MSG {line}")
+
 
         await websocket.send("SYS Replay end")
 
