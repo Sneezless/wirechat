@@ -175,6 +175,30 @@ function handleLine(line){
         return;
     }
 
+    if (line.startsWith("IMG ")){
+        const rest = line.slice(4);
+
+        // format: [timestamp] nick url
+        const match = rest.match(/^\[(.*?)\] (.*?) (.*)$/);
+
+        if (!match){
+            addLine(escapeHTML(rest));
+            return;
+        }
+
+        const time   = escapeHTML(match[1]);
+        const sender = escapeHTML(match[2]);
+        const url    = escapeHTML(match[3]);
+
+        addLine(
+            `<span class="time">[${time}]</span> ` +
+            `<span class="nick">${sender}</span>: ` +
+            `<img src="${url}" style="max-width:300px; display:block; margin-top:4px;">`
+        );
+
+        return;
+    }
+
     if (line.startsWith("MSG ")){
         const rest = line.slice(4);
 
@@ -237,6 +261,13 @@ function sendMsg(){
             localStorage.setItem("wirechat_admin_token", token);
             ws.send("ADMIN " + token);
         }
+        msgInput.value = "";
+        return;
+    }
+
+    if (text.startsWith("/img ")) {
+        const url = text.slice(5).trim();
+        if (url) ws.send("IMG " + url);
         msgInput.value = "";
         return;
     }
